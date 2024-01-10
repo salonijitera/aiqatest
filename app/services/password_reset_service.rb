@@ -1,4 +1,5 @@
 require 'securerandom'
+require_relative '../mailers/application_mailer'
 
 class PasswordResetService < BaseService
   def self.request_password_reset(email:)
