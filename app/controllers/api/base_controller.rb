@@ -1,6 +1,8 @@
 # typed: ignore
 module Api
+  require_relative '../../services/password_reset_service'
   require_relative '../../services/email_verification_service'
+
   class BaseController < ActionController::API
     include ActionController::Cookies
     include Pundit::Authorization
@@ -61,6 +63,24 @@ module Api
       @created_at = resource.created_at
       @refresh_token_expires_in = token.refresh_expires_in
       @scope = token.scopes
+    end
+
+    def request_password_reset
+      email = params.require(:email)
+      result = PasswordResetService.request_password_reset(email: email)
+
+      case result
+      when 'Invalid email format'
+        render json: { message: 'Invalid email format.' }, status: :bad_request
+      when 'Account does not exist'
+        render json: { message: 'Email not found.' }, status: :not_found
+      when 'Password reset instructions have been sent to your email'
+        render json: { status: 200, message: result }, status: :ok
+      else
+        render json: { message: 'An unexpected error occurred on the server.' }, status: :internal_server_error
+      end
+    rescue ActionController::ParameterMissing
+      render json: { message: 'Invalid parameters.' }, status: :bad_request
     end
 
     def verify_email
