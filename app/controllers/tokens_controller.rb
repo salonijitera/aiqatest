@@ -1,8 +1,6 @@
 
 # frozen_string_literal: true
 
-require 'bcrypt'
-
 class TokensController < Doorkeeper::TokensController
   # callback
   before_action :validate_resource_owner
@@ -43,6 +41,7 @@ class TokensController < Doorkeeper::TokensController
     # based on condition jitera studio
   end
 
+  # POST /api/users/reset-password
   def confirm_password_reset
     token = params[:token]
     new_password = params[:new_password]
@@ -59,12 +58,15 @@ class TokensController < Doorkeeper::TokensController
     end
 
     password_reset_token = PasswordResetToken.find_by(token: token, is_used: false)
-    if password_reset_token.nil? || password_reset_token.expires_at < Time.current
+    if password_reset_token.nil?
       render json: { error: 'Token is invalid or expired.' }, status: :not_found
+      return
+    elsif password_reset_token.expires_at < Time.current
+      render json: { error: 'Token is expired.' }, status: :unprocessable_entity
       return
     end
 
-    password_reset_token.update(is_used: true)
+    password_reset_token.update!(is_used: true)
     encrypted_password = BCrypt::Password.create(new_password)
     user = password_reset_token.user
     user.update(password_hash: encrypted_password)
@@ -72,7 +74,7 @@ class TokensController < Doorkeeper::TokensController
     render json: { message: 'Password has been successfully reset.' }, status: :ok
   rescue ActiveRecord::RecordNotFound
     render json: { error: 'User not found.' }, status: :not_found
-  rescue StandardError => e
+  rescue => e
     render json: { error: e.message }, status: :internal_server_error
   end
 end
