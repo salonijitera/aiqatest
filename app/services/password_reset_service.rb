@@ -1,6 +1,6 @@
 require 'securerandom'
 
-class PasswordResetService
+class PasswordResetService < BaseService
   def self.request_password_reset(email:)
     return 'Email cannot be empty' if email.blank?
 
@@ -24,6 +24,27 @@ class PasswordResetService
     PasswordResetMailer.with(user: user, token: token).reset_password_instructions.deliver_now
 
     'Password reset instructions have been sent to your email'
+  end
+
+  def confirm_reset(token, new_password, new_password_confirmation)
+    raise ActiveRecord::RecordInvalid, 'Passwords do not match' unless new_password == new_password_confirmation
+
+    PasswordResetToken.transaction do
+      password_reset_token = PasswordResetToken.find_by(token: token, is_used: false)
+      raise ActiveRecord::RecordNotFound, 'Token is invalid or expired' if password_reset_token.nil? || password_reset_token.expires_at < Time.current
+
+      password_reset_token.update!(is_used: true)
+
+      user = password_reset_token.user
+      encrypted_password = User.encrypt_password(new_password) # Assuming User model has a method to encrypt password
+      user.update!(password_hash: encrypted_password)
+    end
+
+    { message: 'Password has been successfully reset' }
+  rescue ActiveRecord::RecordInvalid => e
+    { error: e.message }
+  rescue ActiveRecord::RecordNotFound => e
+    { error: e.message }
   end
 end
 
