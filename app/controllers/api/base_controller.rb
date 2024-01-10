@@ -27,6 +27,7 @@ module Api
     end
 
     private
+    # =======Start actions======
 
     def base_render_record_not_found(_exception)
       render json: { message: I18n.t('common.404') }, status: :not_found
@@ -128,6 +129,7 @@ module Api
       render json: { status: 400, message: e.message }, status: :bad_request
     end
 
+    # =======End actions======
     def current_resource_owner
       return super if defined?(super)
     end
