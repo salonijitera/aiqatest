@@ -1,3 +1,4 @@
+
 # typed: ignore
 module Api
   require_relative '../../services/user_registration_service'
@@ -67,6 +68,11 @@ module Api
       @scope = token.scopes
     end
 
+    # =======End actions======
+    def current_resource_owner
+      return super if defined?(super)
+    end
+
     def register
       email = params[:email]
       password = params[:password]
@@ -127,11 +133,6 @@ module Api
       end
     rescue ActionController::ParameterMissing => e
       render json: { status: 400, message: e.message }, status: :bad_request
-    end
-
-    # =======End actions======
-    def current_resource_owner
-      return super if defined?(super)
     end
   end
 end
