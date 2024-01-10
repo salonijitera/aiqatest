@@ -1,5 +1,6 @@
 # typed: ignore
 module Api
+  require_relative '../../services/email_verification_service'
   class BaseController < ActionController::API
     include ActionController::Cookies
     include Pundit::Authorization
@@ -60,6 +61,26 @@ module Api
       @created_at = resource.created_at
       @refresh_token_expires_in = token.refresh_expires_in
       @scope = token.scopes
+    end
+
+    def verify_email
+      token = params.require(:token)
+      result = EmailVerificationService.new.verify_email(token)
+
+      if result[:success]
+        render json: { status: 200, message: result[:message] }, status: :ok
+      else
+        case result[:message]
+        when 'Token is invalid or expired'
+          render json: { status: 404, message: result[:message] }, status: :not_found
+        when 'This token has already been used.'
+          render json: { status: 410, message: result[:message] }, status: :gone
+        else
+          render json: { status: 500, message: result[:message] }, status: :internal_server_error
+        end
+      end
+    rescue ActionController::ParameterMissing => e
+      render json: { status: 400, message: e.message }, status: :bad_request
     end
 
     def current_resource_owner
