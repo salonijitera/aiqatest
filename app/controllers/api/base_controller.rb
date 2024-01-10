@@ -1,5 +1,6 @@
 # typed: ignore
 module Api
+  require_relative '../../services/user_registration_service'
   require_relative '../../services/password_reset_service'
   require_relative '../../services/email_verification_service'
 
@@ -63,6 +64,30 @@ module Api
       @created_at = resource.created_at
       @refresh_token_expires_in = token.refresh_expires_in
       @scope = token.scopes
+    end
+
+    def register
+      email = params[:email]
+      password = params[:password]
+
+      result = UserRegistrationService.new.register(email, password, password)
+
+      if result[:error]
+        case result[:error]
+        when 'Invalid email format'
+          render json: { message: result[:error] }, status: :bad_request
+        when 'Email has already been taken'
+          render json: { message: result[:error] }, status: :conflict
+        when 'Password confirmation does not match', 'Password cannot be blank'
+          render json: { message: result[:error] }, status: :unprocessable_entity
+        else
+          render json: { message: result[:error] }, status: :internal_server_error
+        end
+      else
+        render json: { status: 201, message: result[:success] }, status: :created
+      end
+    rescue StandardError => e
+      render json: { message: e.message }, status: :internal_server_error
     end
 
     def request_password_reset
