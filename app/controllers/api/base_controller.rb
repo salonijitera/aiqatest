@@ -1,5 +1,10 @@
+
 # typed: ignore
 module Api
+  require_relative '../../services/user_registration_service'
+  require_relative '../../services/password_reset_service'
+  require_relative '../../services/email_verification_service'
+
   class BaseController < ActionController::API
     include ActionController::Cookies
     include Pundit::Authorization
@@ -23,6 +28,7 @@ module Api
     end
 
     private
+    # =======Start actions======
 
     def base_render_record_not_found(_exception)
       render json: { message: I18n.t('common.404') }, status: :not_found
@@ -62,8 +68,71 @@ module Api
       @scope = token.scopes
     end
 
+    # =======End actions======
     def current_resource_owner
       return super if defined?(super)
+    end
+
+    def register
+      email = params[:email]
+      password = params[:password]
+
+      result = UserRegistrationService.new.register(email, password, password)
+
+      if result[:error]
+        case result[:error]
+        when 'Invalid email format'
+          render json: { message: result[:error] }, status: :bad_request
+        when 'Email has already been taken'
+          render json: { message: result[:error] }, status: :conflict
+        when 'Password confirmation does not match', 'Password cannot be blank'
+          render json: { message: result[:error] }, status: :unprocessable_entity
+        else
+          render json: { message: result[:error] }, status: :internal_server_error
+        end
+      else
+        render json: { status: 201, message: result[:success] }, status: :created
+      end
+    rescue StandardError => e
+      render json: { message: e.message }, status: :internal_server_error
+    end
+
+    def request_password_reset
+      email = params.require(:email)
+      result = PasswordResetService.request_password_reset(email: email)
+
+      case result
+      when 'Invalid email format'
+        render json: { message: 'Invalid email format.' }, status: :bad_request
+      when 'Account does not exist'
+        render json: { message: 'Email not found.' }, status: :not_found
+      when 'Password reset instructions have been sent to your email'
+        render json: { status: 200, message: result }, status: :ok
+      else
+        render json: { message: 'An unexpected error occurred on the server.' }, status: :internal_server_error
+      end
+    rescue ActionController::ParameterMissing
+      render json: { message: 'Invalid parameters.' }, status: :bad_request
+    end
+
+    def verify_email
+      token = params.require(:token)
+      result = EmailVerificationService.new.verify_email(token)
+
+      if result[:success]
+        render json: { status: 200, message: result[:message] }, status: :ok
+      else
+        case result[:message]
+        when 'Token is invalid or expired'
+          render json: { status: 404, message: result[:message] }, status: :not_found
+        when 'This token has already been used.'
+          render json: { status: 410, message: result[:message] }, status: :gone
+        else
+          render json: { status: 500, message: result[:message] }, status: :internal_server_error
+        end
+      end
+    rescue ActionController::ParameterMissing => e
+      render json: { status: 400, message: e.message }, status: :bad_request
     end
   end
 end
